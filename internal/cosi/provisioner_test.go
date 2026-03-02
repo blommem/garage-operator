@@ -185,6 +185,27 @@ func (m *mockGarageClient) DenyBucketKey(ctx context.Context, req garage.DenyBuc
 	return bucket, nil
 }
 
+// createShadowBucket creates a shadow GarageBucket resource for use in tests that call
+// GetShadowBucketGlobalAliasByID (buildCreateBucketResponse, buildGrantAccessResponse, DriverGetExistingBucket)
+func createShadowBucket(bucketID, globalAlias string) *garagev1alpha1.GarageBucket {
+	return &garagev1alpha1.GarageBucket{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "shadow-" + bucketID,
+			Namespace: "garage-system",
+			Labels: map[string]string{
+				LabelCOSIManaged:  "true",
+				LabelCOSIBucketID: truncateLabelValue(bucketID),
+			},
+			Annotations: map[string]string{
+				AnnotationCOSIBucketID: bucketID,
+			},
+		},
+		Spec: garagev1alpha1.GarageBucketSpec{
+			GlobalAlias: globalAlias,
+		},
+	}
+}
+
 // Helper to create a ready cluster
 func createReadyCluster() *garagev1alpha1.GarageCluster {
 	return &garagev1alpha1.GarageCluster{
@@ -416,7 +437,8 @@ func TestProvisionerServer_DriverDeleteBucket_Success(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_Success(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("test-bucket-id", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["test-bucket-id"] = &garage.Bucket{ID: "test-bucket-id"}
@@ -458,6 +480,7 @@ func TestProvisionerServer_DriverGrantBucketAccess_Success(t *testing.T) {
 	assert.Equal(t, "test-bucket-id", resp.Buckets[0].BucketId)
 	assert.NotNil(t, resp.Buckets[0].BucketInfo)
 	assert.NotNil(t, resp.Buckets[0].BucketInfo.S3)
+	assert.Equal(t, "test-bucket", resp.Buckets[0].BucketInfo.S3.BucketId)
 
 	// Verify Garage client was called
 	require.Len(t, mockClient.createKeyCalls, 1)
@@ -507,7 +530,8 @@ func TestProvisionerServer_DriverRevokeBucketAccess_Success(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_Idempotent(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("test-bucket-id", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["test-bucket-id"] = &garage.Bucket{ID: "test-bucket-id"}
@@ -581,7 +605,10 @@ func TestProvisionerServer_DriverDeleteBucket_NotFound(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_MultiBucket(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadow1 := createShadowBucket("bucket-1", "alias-bucket-1")
+	shadow2 := createShadowBucket("bucket-2", "alias-bucket-2")
+	shadow3 := createShadowBucket("bucket-3", "alias-bucket-3")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadow1, shadow2, shadow3).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["bucket-1"] = &garage.Bucket{ID: "bucket-1"}
@@ -632,7 +659,10 @@ func TestProvisionerServer_DriverGrantBucketAccess_MultiBucket(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_AccessModes(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowRW := createShadowBucket("bucket-rw", "alias-bucket-rw")
+	shadowRO := createShadowBucket("bucket-ro", "alias-bucket-ro")
+	shadowWO := createShadowBucket("bucket-wo", "alias-bucket-wo")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowRW, shadowRO, shadowWO).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["bucket-rw"] = &garage.Bucket{ID: "bucket-rw"}
@@ -716,7 +746,8 @@ func TestProvisionerServer_DriverGrantBucketAccess_UnsupportedProtocol(t *testin
 
 func TestProvisionerServer_DriverGrantBucketAccess_S3ProtocolAllowed(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("test-bucket-id", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["test-bucket-id"] = &garage.Bucket{ID: "test-bucket-id"}
@@ -751,7 +782,8 @@ func TestProvisionerServer_DriverGrantBucketAccess_S3ProtocolAllowed(t *testing.
 
 func TestProvisionerServer_DriverGetExistingBucket_Success(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("existing-bucket-id", "my-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["existing-bucket-id"] = &garage.Bucket{
@@ -779,7 +811,7 @@ func TestProvisionerServer_DriverGetExistingBucket_Success(t *testing.T) {
 	assert.Equal(t, "existing-bucket-id", resp.BucketId)
 	require.NotNil(t, resp.Protocols)
 	require.NotNil(t, resp.Protocols.S3)
-	assert.Equal(t, "existing-bucket-id", resp.Protocols.S3.BucketId)
+	assert.Equal(t, "my-bucket", resp.Protocols.S3.BucketId)
 	assert.Equal(t, "http://garage.test:3900", resp.Protocols.S3.Endpoint)
 }
 
@@ -874,7 +906,8 @@ func TestProvisionerServer_DriverCreateBucket_IdempotentMismatch(t *testing.T) {
 
 func TestProvisionerServer_DriverCreateBucket_IdempotentMatch(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("bucket-test-bucket", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	existingSize := uint64(5000)
 	mockClient := newMockGarageClient()
@@ -1003,7 +1036,8 @@ func TestProvisionerServer_GetS3Endpoint_NilEndpoints(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("test-bucket-id", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["test-bucket-id"] = &garage.Bucket{ID: "test-bucket-id"}
@@ -1057,7 +1091,8 @@ func TestSanitizeKeyName_DifferentLongNamesProduceDifferentResults(t *testing.T)
 
 func TestProvisionerServer_DriverGrantBucketAccess_IdempotentUpdatesPermissions(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("test-bucket-id", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["test-bucket-id"] = &garage.Bucket{ID: "test-bucket-id"}
@@ -1109,7 +1144,8 @@ func TestProvisionerServer_DriverGrantBucketAccess_IdempotentUpdatesPermissions(
 
 func TestProvisionerServer_DriverGrantBucketAccess_IdempotentSkipsMatchingPermissions(t *testing.T) {
 	cluster := createReadyCluster()
-	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
+	shadowBucket := createShadowBucket("test-bucket-id", "test-bucket")
+	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster, shadowBucket).Build()
 
 	mockClient := newMockGarageClient()
 	mockClient.buckets["test-bucket-id"] = &garage.Bucket{ID: "test-bucket-id"}
