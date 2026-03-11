@@ -165,7 +165,21 @@ Or reference an existing secret — use `accessKeyIdKey`/`secretAccessKeyKey` to
     secretAccessKeyKey: AWS_SECRET_ACCESS_KEY
 ```
 
-To customize the **output** secret key names, use `secretTemplate` separately.
+### Secret Template
+
+By default the generated secret includes `access-key-id`, `secret-access-key`, `endpoint`, `host`, `scheme`, and `region`. Use `secretTemplate` to customize what gets included and how keys are named:
+
+```yaml
+secretTemplate:
+  accessKeyIdKey: AWS_ACCESS_KEY_ID
+  secretAccessKeyKey: AWS_SECRET_ACCESS_KEY
+  endpointKey: AWS_ENDPOINT_URL_S3
+  regionKey: AWS_REGION
+  includeEndpoint: false   # omit endpoint/host/scheme
+  includeRegion: false     # omit region
+```
+
+This is useful when mounting the secret directly as environment variables with `envFrom` — only the keys your app expects will be present.
 
 Get S3 credentials:
 
