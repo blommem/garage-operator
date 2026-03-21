@@ -105,6 +105,9 @@ func (r *GarageAdminTokenReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// Reconcile the admin token secret
 	if err := r.reconcileSecret(ctx, token, cluster); err != nil {
+		if isTransientConnectivityError(err) {
+			return r.updateStatusWaiting(ctx, token)
+		}
 		return r.updateStatus(ctx, token, "Error", err)
 	}
 
@@ -283,6 +286,21 @@ func (r *GarageAdminTokenReconciler) finalize(ctx context.Context, token *garage
 	}
 
 	return nil
+}
+
+func (r *GarageAdminTokenReconciler) updateStatusWaiting(ctx context.Context, token *garagev1alpha1.GarageAdminToken) (ctrl.Result, error) {
+	token.Status.Phase = PhasePending
+	meta.SetStatusCondition(&token.Status.Conditions, metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		Reason:             garagev1alpha1.ReasonClusterNotReady,
+		Message:            "waiting for cluster to be reachable",
+		ObservedGeneration: token.Generation,
+	})
+	if statusErr := r.Status().Update(ctx, token); statusErr != nil {
+		return ctrl.Result{}, statusErr
+	}
+	return ctrl.Result{RequeueAfter: RequeueAfterUnhealthy}, nil
 }
 
 func (r *GarageAdminTokenReconciler) updateStatus(ctx context.Context, token *garagev1alpha1.GarageAdminToken, phase string, err error) (ctrl.Result, error) {

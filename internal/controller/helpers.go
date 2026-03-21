@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -123,6 +124,27 @@ func GetAdminToken(ctx context.Context, c client.Client, cluster *garagev1alpha1
 // Example: svcFQDN("garage", "default", 3903, "cluster.local") → "garage.default.svc.cluster.local:3903"
 func svcFQDN(name, namespace string, port int32, clusterDomain string) string {
 	return fmt.Sprintf("%s.%s.svc.%s:%d", name, namespace, clusterDomain, port)
+}
+
+// isTransientConnectivityError returns true for errors that indicate the cluster
+// service is temporarily unreachable (DNS not yet propagated, pod not yet ready,
+// etc.) and should be retried without surfacing as a permanent error condition.
+func isTransientConnectivityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, substr := range []string{
+		"no such host",
+		"connection refused",
+		"dial tcp",
+		"i/o timeout",
+	} {
+		if strings.Contains(msg, substr) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetGarageClient creates a Garage Admin API client for the given cluster.

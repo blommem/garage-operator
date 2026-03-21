@@ -166,6 +166,13 @@ func (r *GarageKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Reconcile the key
 	secretAccessKey, keyErr := r.reconcileKey(ctx, key, garageClient)
 
+	// Transient connectivity errors (DNS not ready, connection refused) are
+	// expected while the cluster Service is being created. Treat them as a
+	// waiting state rather than a permanent error.
+	if keyErr != nil && isTransientConnectivityError(keyErr) {
+		return r.updateStatusWaiting(ctx, key)
+	}
+
 	// Only create/update the Kubernetes secret if the key was successfully created
 	// (either in this reconciliation or previously). This prevents creating a secret
 	// with incomplete data if key creation failed.
@@ -841,6 +848,21 @@ func (r *GarageKeyReconciler) finalize(ctx context.Context, key *garagev1alpha1.
 	return nil
 }
 
+func (r *GarageKeyReconciler) updateStatusWaiting(ctx context.Context, key *garagev1alpha1.GarageKey) (ctrl.Result, error) {
+	key.Status.Phase = PhasePending
+	meta.SetStatusCondition(&key.Status.Conditions, metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		Reason:             garagev1alpha1.ReasonClusterNotReady,
+		Message:            "waiting for cluster to be reachable",
+		ObservedGeneration: key.Generation,
+	})
+	if statusErr := UpdateStatusWithRetry(ctx, r.Client, key); statusErr != nil {
+		return ctrl.Result{}, statusErr
+	}
+	return ctrl.Result{RequeueAfter: RequeueAfterUnhealthy}, nil
+}
+
 func (r *GarageKeyReconciler) updateStatus(ctx context.Context, key *garagev1alpha1.GarageKey, phase string, err error) (ctrl.Result, error) {
 	key.Status.Phase = phase
 	// Only set ObservedGeneration when reconciliation succeeded
@@ -875,6 +897,9 @@ func (r *GarageKeyReconciler) updateStatusFromGarage(ctx context.Context, key *g
 
 	garageKey, err := garageClient.GetKey(ctx, garage.GetKeyRequest{ID: key.Status.AccessKeyID})
 	if err != nil {
+		if isTransientConnectivityError(err) {
+			return r.updateStatusWaiting(ctx, key)
+		}
 		return r.updateStatus(ctx, key, "Error", fmt.Errorf("failed to get key info: %w", err))
 	}
 
