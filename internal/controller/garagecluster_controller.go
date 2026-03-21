@@ -2011,7 +2011,7 @@ func (r *GarageClusterReconciler) updateStatusFromCluster(ctx context.Context, c
 		} else {
 			cluster.Status.Health = &garagev1alpha1.ClusterHealth{
 				Status:           health.Status,
-				Healthy:          health.ConnectedNodes == health.StorageNodes,
+				Healthy:          health.StorageNodesUp == health.StorageNodes,
 				Available:        health.PartitionsQuorum == health.Partitions,
 				KnownNodes:       health.KnownNodes,
 				ConnectedNodes:   health.ConnectedNodes,
@@ -2175,8 +2175,8 @@ func (r *GarageClusterReconciler) updateStatusFromCluster(ctx context.Context, c
 	} else if cluster.Status.Health != nil && !cluster.Status.Health.Healthy {
 		readyStatus = metav1.ConditionFalse
 		readyReason = "LayoutNotReady"
-		readyMessage = fmt.Sprintf("cluster layout not converged: %d/%d storage nodes connected",
-			cluster.Status.Health.ConnectedNodes, cluster.Status.Health.StorageNodes)
+		readyMessage = fmt.Sprintf("cluster layout not converged: %d/%d storage nodes ok",
+			cluster.Status.Health.StorageNodesOK, cluster.Status.Health.StorageNodes)
 	}
 
 	meta.SetStatusCondition(&cluster.Status.Conditions, metav1.Condition{

@@ -100,11 +100,11 @@ func (r *GarageBucketReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// assignment is inconsistent (not all expected nodes are in the layout yet).
 	if !bucket.DeletionTimestamp.IsZero() {
 		// Allow deletions to proceed regardless of cluster health.
-	} else if cluster.Status.Phase != PhaseRunning || (cluster.Status.Health != nil && !cluster.Status.Health.Healthy) {
+	} else if cluster.Status.Phase != PhaseRunning || cluster.Status.Health == nil || !cluster.Status.Health.Healthy {
 		msg := "waiting for cluster layout to converge"
 		if cluster.Status.Health != nil {
-			msg = fmt.Sprintf("waiting for cluster layout to converge (%d/%d nodes connected)",
-				cluster.Status.Health.ConnectedNodes, cluster.Status.Health.StorageNodes)
+			msg = fmt.Sprintf("waiting for cluster layout to converge (%d/%d storage nodes ok)",
+				cluster.Status.Health.StorageNodesOK, cluster.Status.Health.StorageNodes)
 		}
 		meta.SetStatusCondition(&bucket.Status.Conditions, metav1.Condition{
 			Type:               "Ready",
@@ -117,7 +117,7 @@ func (r *GarageBucketReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := UpdateStatusWithRetry(ctx, r.Client, bucket); err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+		return ctrl.Result{RequeueAfter: RequeueAfterUnhealthy}, nil
 	}
 
 	// Get garage client
