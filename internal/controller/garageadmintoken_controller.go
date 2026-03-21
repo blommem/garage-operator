@@ -74,6 +74,9 @@ func (r *GarageAdminTokenReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		Name:      token.Spec.ClusterRef.Name,
 		Namespace: clusterNamespace,
 	}, cluster); err != nil {
+		if errors.IsNotFound(err) {
+			return r.updateStatusWaiting(ctx, token)
+		}
 		return r.updateStatus(ctx, token, "Error", fmt.Errorf("cluster not found: %w", err))
 	}
 

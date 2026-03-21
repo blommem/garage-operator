@@ -80,10 +80,10 @@ var _ = Describe("GarageKey Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 
-			By("Verifying status phase is Error")
+			By("Verifying status phase is Pending (cluster not found is transient)")
 			updatedKey := &garagev1alpha1.GarageKey{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedKey)).To(Succeed())
-			Expect(updatedKey.Status.Phase).To(Equal(PhaseError))
+			Expect(updatedKey.Status.Phase).To(Equal(PhasePending))
 		})
 
 		It("should handle key creation spec with bucket permissions", func() {

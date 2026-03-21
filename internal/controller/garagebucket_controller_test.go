@@ -81,10 +81,10 @@ var _ = Describe("GarageBucket Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 
-			By("Verifying status phase is Error")
+			By("Verifying status phase is Pending (cluster not found is transient)")
 			updatedBucket := &garagev1alpha1.GarageBucket{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedBucket)).To(Succeed())
-			Expect(updatedBucket.Status.Phase).To(Equal(PhaseError))
+			Expect(updatedBucket.Status.Phase).To(Equal(PhasePending))
 		})
 
 		It("should handle bucket creation spec with quotas", func() {

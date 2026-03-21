@@ -92,6 +92,9 @@ func (r *GarageBucketReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Now check cluster error for non-deletion cases
 	if clusterErr != nil {
+		if errors.IsNotFound(clusterErr) {
+			return r.updateStatusWaiting(ctx, bucket)
+		}
 		return r.updateStatus(ctx, bucket, "Error", fmt.Errorf("cluster not found: %w", clusterErr))
 	}
 
@@ -520,6 +523,21 @@ func (r *GarageBucketReconciler) finalize(ctx context.Context, bucket *garagev1a
 	}
 
 	return nil
+}
+
+func (r *GarageBucketReconciler) updateStatusWaiting(ctx context.Context, bucket *garagev1alpha1.GarageBucket) (ctrl.Result, error) {
+	bucket.Status.Phase = PhasePending
+	meta.SetStatusCondition(&bucket.Status.Conditions, metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		Reason:             garagev1alpha1.ReasonClusterNotReady,
+		Message:            "waiting for cluster to be reachable",
+		ObservedGeneration: bucket.Generation,
+	})
+	if statusErr := UpdateStatusWithRetry(ctx, r.Client, bucket); statusErr != nil {
+		return ctrl.Result{}, statusErr
+	}
+	return ctrl.Result{RequeueAfter: RequeueAfterUnhealthy}, nil
 }
 
 func (r *GarageBucketReconciler) updateStatus(ctx context.Context, bucket *garagev1alpha1.GarageBucket, phase string, err error) (ctrl.Result, error) {

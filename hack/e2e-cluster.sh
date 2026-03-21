@@ -757,15 +757,18 @@ test_key_permission_update() {
 test_admin_token_resource() {
     log_test "Testing GarageAdminToken resource..."
 
-    # Check the admin token resource exists and is ready
-    if kubectl get garageadmintoken garage-admin -n "$NAMESPACE" &>/dev/null; then
-        local phase=$(kubectl get garageadmintoken garage-admin -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null)
+    local timeout=30
+    local end_time=$((SECONDS + timeout))
+    while [ $SECONDS -lt $end_time ]; do
+        local phase
+        phase=$(kubectl get garageadmintoken garage-admin -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null)
         if [ "$phase" = "Ready" ]; then
             test_pass "GarageAdminToken is Ready"
             return 0
         fi
-    fi
-    test_fail "GarageAdminToken not ready"
+        sleep 2
+    done
+    test_fail "GarageAdminToken not ready (phase: $(kubectl get garageadmintoken garage-admin -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null))"
     return 1
 }
 

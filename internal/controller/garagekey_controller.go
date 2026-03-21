@@ -94,6 +94,9 @@ func (r *GarageKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Now check cluster error for non-deletion cases
 	if clusterErr != nil {
+		if errors.IsNotFound(clusterErr) {
+			return r.updateStatusWaiting(ctx, key)
+		}
 		return r.updateStatus(ctx, key, "Error", fmt.Errorf("cluster not found: %w", clusterErr))
 	}
 
