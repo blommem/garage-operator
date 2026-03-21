@@ -2172,6 +2172,11 @@ func (r *GarageClusterReconciler) updateStatusFromCluster(ctx context.Context, c
 		readyStatus = metav1.ConditionFalse
 		readyReason = "NotAllReplicasReady"
 		readyMessage = fmt.Sprintf("%d/%d replicas ready", readyReplicas, desiredReplicas)
+	} else if cluster.Status.Health != nil && !cluster.Status.Health.Healthy {
+		readyStatus = metav1.ConditionFalse
+		readyReason = "LayoutNotReady"
+		readyMessage = fmt.Sprintf("cluster layout not converged: %d/%d storage nodes connected",
+			cluster.Status.Health.ConnectedNodes, cluster.Status.Health.StorageNodes)
 	}
 
 	meta.SetStatusCondition(&cluster.Status.Conditions, metav1.Condition{

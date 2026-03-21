@@ -95,6 +95,31 @@ func (r *GarageBucketReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return r.updateStatus(ctx, bucket, "Error", fmt.Errorf("cluster not found: %w", clusterErr))
 	}
 
+	// Guard against calling the Garage API before the cluster layout has converged.
+	// Garage returns HTTP 500 "Layout not ready" for any API call when the ring
+	// assignment is inconsistent (not all expected nodes are in the layout yet).
+	if !bucket.DeletionTimestamp.IsZero() {
+		// Allow deletions to proceed regardless of cluster health.
+	} else if cluster.Status.Phase != PhaseRunning || (cluster.Status.Health != nil && !cluster.Status.Health.Healthy) {
+		msg := "waiting for cluster layout to converge"
+		if cluster.Status.Health != nil {
+			msg = fmt.Sprintf("waiting for cluster layout to converge (%d/%d nodes connected)",
+				cluster.Status.Health.ConnectedNodes, cluster.Status.Health.StorageNodes)
+		}
+		meta.SetStatusCondition(&bucket.Status.Conditions, metav1.Condition{
+			Type:               "Ready",
+			Status:             metav1.ConditionFalse,
+			Reason:             "ClusterNotReady",
+			Message:            msg,
+			ObservedGeneration: bucket.Generation,
+		})
+		bucket.Status.Phase = PhasePending
+		if err := UpdateStatusWithRetry(ctx, r.Client, bucket); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+	}
+
 	// Get garage client
 	garageClient, err := GetGarageClient(ctx, r.Client, cluster, r.ClusterDomain)
 	if err != nil {

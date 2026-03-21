@@ -35,6 +35,7 @@ import (
 const (
 	PhaseReady    = "Ready"
 	PhasePending  = "Pending"
+	PhaseRunning  = "Running"
 	PhaseError    = "Error"
 	PhaseDeleting = "Deleting"
 )
