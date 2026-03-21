@@ -44,7 +44,8 @@ const (
 // GarageAdminTokenReconciler reconciles a GarageAdminToken object
 type GarageAdminTokenReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garageadmintokens,verbs=get;list;watch;create;update;patch;delete
@@ -185,7 +186,7 @@ func (r *GarageAdminTokenReconciler) reconcileSecret(ctx context.Context, token 
 		if cluster.Spec.Admin != nil && cluster.Spec.Admin.BindPort != 0 {
 			adminPort = cluster.Spec.Admin.BindPort
 		}
-		endpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, adminPort)
+		endpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain)
 		secretData[endpointKey] = []byte(endpoint)
 	}
 

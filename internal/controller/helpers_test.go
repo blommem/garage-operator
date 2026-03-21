@@ -273,7 +273,7 @@ func TestBuildSecretData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildSecretData(tt.cfg, tt.key, tt.cluster, tt.secretAccessKey)
+			result := buildSecretData(tt.cfg, tt.key, tt.cluster, tt.secretAccessKey, "cluster.local")
 
 			for _, key := range tt.wantKeys {
 				if _, ok := result[key]; !ok {

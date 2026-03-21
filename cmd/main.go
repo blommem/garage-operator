@@ -98,6 +98,11 @@ func main() {
 		"Comma-separated list of namespaces to watch. If empty, watches all namespaces. "+
 			"Can also be set via WATCH_NAMESPACE env var.")
 
+	// Cluster domain
+	var clusterDomain string
+	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local",
+		"Kubernetes cluster domain used for service FQDNs (e.g. cluster.local, eu-cluster.local)")
+
 	// COSI driver flags
 	var enableCOSI bool
 	var cosiEndpoint string
@@ -237,36 +242,41 @@ func main() {
 	}
 
 	if err := (&controller.GarageClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageCluster")
 		os.Exit(1)
 	}
 	if err := (&controller.GarageBucketReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageBucket")
 		os.Exit(1)
 	}
 	if err := (&controller.GarageKeyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageKey")
 		os.Exit(1)
 	}
 	if err := (&controller.GarageNodeReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageNode")
 		os.Exit(1)
 	}
 	if err := (&controller.GarageAdminTokenReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		ClusterDomain: clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageAdminToken")
 		os.Exit(1)
@@ -312,9 +322,10 @@ func main() {
 	// Start COSI driver if enabled
 	if enableCOSI {
 		cosiDriver := cosi.NewDriver(cosi.DriverConfig{
-			DriverName: cosiDriverName,
-			Endpoint:   cosiEndpoint,
-			Namespace:  cosiNamespace,
+			DriverName:    cosiDriverName,
+			Endpoint:      cosiEndpoint,
+			Namespace:     cosiNamespace,
+			ClusterDomain: clusterDomain,
 		}, mgr.GetClient())
 
 		// Add COSI driver as a Runnable to the manager

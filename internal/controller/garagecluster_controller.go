@@ -62,7 +62,8 @@ const (
 // GarageClusterReconciler reconciles a GarageCluster object
 type GarageClusterReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garageclusters,verbs=get;list;watch;create;update;patch;delete
@@ -310,8 +311,7 @@ func (r *GarageClusterReconciler) removeNodesFromLayout(ctx context.Context, clu
 		if cluster.Spec.Admin != nil && cluster.Spec.Admin.BindPort != 0 {
 			adminPort = cluster.Spec.Admin.BindPort
 		}
-		endpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d",
-			cluster.Name, cluster.Namespace, adminPort)
+		endpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain)
 		garageClient = garage.NewClient(endpoint, adminToken)
 	}
 
@@ -1983,7 +1983,7 @@ func (r *GarageClusterReconciler) updateStatusFromCluster(ctx context.Context, c
 
 	// Try to get cluster health from Garage Admin API
 	adminPort := getAdminPort(cluster)
-	adminEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, adminPort)
+	adminEndpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain)
 	adminToken := ""
 
 	// Get admin token from secret
@@ -2192,9 +2192,9 @@ func (r *GarageClusterReconciler) updateStatusFromCluster(ctx context.Context, c
 		rpcPort = cluster.Spec.Network.RPCBindPort
 	}
 	cluster.Status.Endpoints = &garagev1alpha1.ClusterEndpoints{
-		S3:    fmt.Sprintf("%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, s3Port),
-		Admin: fmt.Sprintf("%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, adminPort),
-		RPC:   fmt.Sprintf("%s-headless.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, rpcPort),
+		S3:    svcFQDN(cluster.Name, cluster.Namespace, s3Port, r.ClusterDomain),
+		Admin: svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain),
+		RPC:   svcFQDN(cluster.Name+"-headless", cluster.Namespace, rpcPort, r.ClusterDomain),
 	}
 
 	if err := UpdateStatusWithRetry(ctx, r.Client, cluster); err != nil {
@@ -2877,8 +2877,7 @@ func (r *GarageClusterReconciler) getStorageClusterClient(ctx context.Context, c
 
 	// Build endpoint for storage cluster's admin API
 	adminPort := getAdminPort(storageCluster)
-	endpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d",
-		storageCluster.Name, storageCluster.Namespace, adminPort)
+	endpoint := "http://" + svcFQDN(storageCluster.Name, storageCluster.Namespace, adminPort, r.ClusterDomain)
 
 	client := garage.NewClient(endpoint, adminToken)
 
@@ -3718,7 +3717,7 @@ func (r *GarageClusterReconciler) handleConnectNodes(ctx context.Context, cluste
 	}
 
 	adminPort := getAdminPort(cluster)
-	adminEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, adminPort)
+	adminEndpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain)
 	garageClient := garage.NewClient(adminEndpoint, adminToken)
 
 	// Parse comma-separated connection strings
@@ -3776,7 +3775,7 @@ func (r *GarageClusterReconciler) handleSkipDeadNodes(ctx context.Context, clust
 	}
 
 	adminPort := getAdminPort(cluster)
-	adminEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, adminPort)
+	adminEndpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain)
 	garageClient := garage.NewClient(adminEndpoint, adminToken)
 
 	// Get current layout to determine version

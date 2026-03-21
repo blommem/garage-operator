@@ -59,6 +59,9 @@ spec:
         - --cosi-driver-name={{ .Values.cosi.driverName }}
         - --cosi-namespace={{ .Values.cosi.namespace | default .Release.Namespace }}
         {{- end }}
+        {{- if ne .Values.clusterDomain "cluster.local" }}
+        - --cluster-domain={{ .Values.clusterDomain }}
+        {{- end }}
         {{- $watchNS := include "garage-operator.watchNamespaceEnv" . }}
         {{- if $watchNS }}
         - --watch-namespaces={{ $watchNS }}

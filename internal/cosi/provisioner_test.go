@@ -234,7 +234,7 @@ func newTestScheme() *runtime.Scheme {
 
 func TestProvisionerServer_DriverCreateBucket_MissingClusterRef(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverCreateBucketRequest{
 		Name:       "test-bucket",
@@ -251,7 +251,7 @@ func TestProvisionerServer_DriverCreateBucket_MissingClusterRef(t *testing.T) {
 
 func TestProvisionerServer_DriverCreateBucket_ClusterNotFound(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverCreateBucketRequest{
 		Name: "test-bucket",
@@ -282,7 +282,7 @@ func TestProvisionerServer_DriverCreateBucket_ClusterNotReady(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).WithObjects(cluster).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverCreateBucketRequest{
 		Name: "test-bucket",
@@ -302,7 +302,7 @@ func TestProvisionerServer_DriverCreateBucket_ClusterNotReady(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_ServiceAccountRejected(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverGrantBucketAccessRequest{
 		AccountName: "test-access",
@@ -327,7 +327,7 @@ func TestProvisionerServer_DriverGrantBucketAccess_ServiceAccountRejected(t *tes
 
 func TestProvisionerServer_DriverGrantBucketAccess_MissingClusterRef(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverGrantBucketAccessRequest{
 		AccountName: "test-access",
@@ -350,7 +350,7 @@ func TestProvisionerServer_DriverGrantBucketAccess_MissingClusterRef(t *testing.
 
 func TestProvisionerServer_DriverGrantBucketAccess_NoBuckets(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverGrantBucketAccessRequest{
 		AccountName: "test-access",
@@ -718,7 +718,7 @@ func TestProvisionerServer_DriverGrantBucketAccess_AccessModes(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_UnsupportedProtocol(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverGrantBucketAccessRequest{
 		AccountName: "test-access",
@@ -845,7 +845,7 @@ func TestProvisionerServer_DriverGetExistingBucket_NotFound(t *testing.T) {
 
 func TestProvisionerServer_DriverGetExistingBucket_MissingID(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverGetExistingBucketRequest{
 		ExistingBucketId: "",
@@ -981,7 +981,7 @@ func TestSanitizeBucketName_DifferentLongNamesProduceDifferentResults(t *testing
 
 func TestProvisionerServer_DriverCreateBucket_EmptyName(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverCreateBucketRequest{
 		Name: "",
@@ -1000,7 +1000,7 @@ func TestProvisionerServer_DriverCreateBucket_EmptyName(t *testing.T) {
 
 func TestProvisionerServer_DriverGrantBucketAccess_EmptyAccountName(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverGrantBucketAccessRequest{
 		AccountName: "",
@@ -1190,7 +1190,7 @@ func TestProvisionerServer_DriverGrantBucketAccess_IdempotentSkipsMatchingPermis
 
 func TestProvisionerServer_DriverDeleteBucket_EmptyBucketId(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverDeleteBucketRequest{
 		BucketId: "",
@@ -1209,7 +1209,7 @@ func TestProvisionerServer_DriverDeleteBucket_EmptyBucketId(t *testing.T) {
 
 func TestProvisionerServer_DriverRevokeBucketAccess_EmptyAccountId(t *testing.T) {
 	fakeClient := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
-	server := NewProvisionerServer(fakeClient, "garage-system")
+	server := NewProvisionerServer(fakeClient, "garage-system", "cluster.local")
 
 	req := &cosiproto.DriverRevokeBucketAccessRequest{
 		AccountId: "",

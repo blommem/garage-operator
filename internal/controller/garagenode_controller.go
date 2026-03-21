@@ -49,7 +49,8 @@ const (
 // GarageNodeReconciler reconciles a GarageNode object
 type GarageNodeReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garagenodes,verbs=get;list;watch;create;update;patch;delete
@@ -88,7 +89,7 @@ func (r *GarageNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if !node.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(node, garageNodeFinalizer) {
 			// Get garage client for finalization
-			garageClient, err := GetGarageClient(ctx, r.Client, cluster)
+			garageClient, err := GetGarageClient(ctx, r.Client, cluster, r.ClusterDomain)
 			if err != nil {
 				log.Error(err, "Failed to get garage client for finalization")
 			} else {
@@ -134,7 +135,7 @@ func (r *GarageNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Get garage client for layout management
-	garageClient, err := GetGarageClient(ctx, r.Client, cluster)
+	garageClient, err := GetGarageClient(ctx, r.Client, cluster, r.ClusterDomain)
 	if err != nil {
 		return r.updateStatus(ctx, node, "Error", fmt.Errorf("failed to create garage client: %w", err))
 	}

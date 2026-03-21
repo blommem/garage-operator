@@ -46,7 +46,8 @@ const (
 // GarageKeyReconciler reconciles a GarageKey object
 type GarageKeyReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garagekeys,verbs=get;list;watch;create;update;patch;delete
@@ -97,7 +98,7 @@ func (r *GarageKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Get garage client
-	garageClient, err := GetGarageClient(ctx, r.Client, cluster)
+	garageClient, err := GetGarageClient(ctx, r.Client, cluster, r.ClusterDomain)
 	if err != nil {
 		return r.updateStatus(ctx, key, "Error", fmt.Errorf("failed to create garage client: %w", err))
 	}
@@ -666,7 +667,7 @@ func resolveSecretConfig(key *garagev1alpha1.GarageKey) secretConfig {
 }
 
 // buildSecretData constructs the secret data map based on configuration
-func buildSecretData(cfg secretConfig, key *garagev1alpha1.GarageKey, cluster *garagev1alpha1.GarageCluster, secretAccessKey string) map[string][]byte {
+func buildSecretData(cfg secretConfig, key *garagev1alpha1.GarageKey, cluster *garagev1alpha1.GarageCluster, secretAccessKey, clusterDomain string) map[string][]byte {
 	data := map[string][]byte{
 		cfg.accessKeyIDKey: []byte(key.Status.AccessKeyID),
 	}
@@ -680,7 +681,7 @@ func buildSecretData(cfg secretConfig, key *garagev1alpha1.GarageKey, cluster *g
 		if cluster.Spec.S3API != nil && cluster.Spec.S3API.BindPort != 0 {
 			s3Port = cluster.Spec.S3API.BindPort
 		}
-		host := fmt.Sprintf("%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, s3Port)
+		host := svcFQDN(cluster.Name, cluster.Namespace, s3Port, clusterDomain)
 		scheme := "http"
 		endpoint := fmt.Sprintf("%s://%s", scheme, host)
 		data[cfg.endpointKey] = []byte(endpoint)
@@ -733,7 +734,7 @@ func (r *GarageKeyReconciler) reconcileSecret(ctx context.Context, key *garagev1
 	log := logf.FromContext(ctx)
 
 	cfg := resolveSecretConfig(key)
-	secretData := buildSecretData(cfg, key, cluster, secretAccessKey)
+	secretData := buildSecretData(cfg, key, cluster, secretAccessKey, r.ClusterDomain)
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

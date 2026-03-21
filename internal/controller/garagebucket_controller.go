@@ -44,7 +44,8 @@ const (
 // GarageBucketReconciler reconciles a GarageBucket object
 type GarageBucketReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garagebuckets,verbs=get;list;watch;create;update;patch;delete
@@ -95,7 +96,7 @@ func (r *GarageBucketReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Get garage client
-	garageClient, err := GetGarageClient(ctx, r.Client, cluster)
+	garageClient, err := GetGarageClient(ctx, r.Client, cluster, r.ClusterDomain)
 	if err != nil {
 		return r.updateStatus(ctx, bucket, "Error", fmt.Errorf("failed to create garage client: %w", err))
 	}

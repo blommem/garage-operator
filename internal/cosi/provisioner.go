@@ -53,9 +53,13 @@ type GarageClient interface {
 // GarageClientFactory creates a GarageClient for a given cluster
 type GarageClientFactory func(ctx context.Context, c client.Client, cluster *garagev1alpha1.GarageCluster) (GarageClient, error)
 
-// defaultGarageClientFactory uses the controller helper to create real Garage clients
-func defaultGarageClientFactory(ctx context.Context, c client.Client, cluster *garagev1alpha1.GarageCluster) (GarageClient, error) {
-	return controller.GetGarageClient(ctx, c, cluster)
+// defaultGarageClientFactory uses the controller helper to create real Garage clients.
+// clusterDomain is stored on the ProvisionerServer and threaded through via a closure
+// in NewProvisionerServer; the factory signature matches GarageClientFactory.
+func makeDefaultGarageClientFactory(clusterDomain string) GarageClientFactory {
+	return func(ctx context.Context, c client.Client, cluster *garagev1alpha1.GarageCluster) (GarageClient, error) {
+		return controller.GetGarageClient(ctx, c, cluster, clusterDomain)
+	}
 }
 
 // ProvisionerServer implements the COSI Provisioner service
@@ -63,17 +67,19 @@ type ProvisionerServer struct {
 	cosiproto.UnimplementedProvisionerServer
 	client              client.Client
 	namespace           string // Namespace for shadow resources
+	clusterDomain       string
 	shadowManager       *ShadowManager
 	garageClientFactory GarageClientFactory
 }
 
 // NewProvisionerServer creates a new ProvisionerServer
-func NewProvisionerServer(c client.Client, namespace string) *ProvisionerServer {
+func NewProvisionerServer(c client.Client, namespace, clusterDomain string) *ProvisionerServer {
 	return &ProvisionerServer{
 		client:              c,
 		namespace:           namespace,
+		clusterDomain:       clusterDomain,
 		shadowManager:       NewShadowManager(c, namespace),
-		garageClientFactory: defaultGarageClientFactory,
+		garageClientFactory: makeDefaultGarageClientFactory(clusterDomain),
 	}
 }
 
@@ -82,6 +88,7 @@ func NewProvisionerServerWithFactory(c client.Client, namespace string, factory 
 	return &ProvisionerServer{
 		client:              c,
 		namespace:           namespace,
+		clusterDomain:       "cluster.local",
 		shadowManager:       NewShadowManager(c, namespace),
 		garageClientFactory: factory,
 	}
@@ -587,11 +594,11 @@ func (s *ProvisionerServer) getS3Endpoint(cluster *garagev1alpha1.GarageCluster)
 		return cluster.Status.Endpoints.S3
 	}
 	// Fallback to constructing from service
-	port := 3900
+	port := int32(3900)
 	if cluster.Spec.S3API != nil && cluster.Spec.S3API.BindPort > 0 {
-		port = int(cluster.Spec.S3API.BindPort)
+		port = cluster.Spec.S3API.BindPort
 	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, port)
+	return fmt.Sprintf("%s.%s.svc.%s:%d", cluster.Name, cluster.Namespace, s.clusterDomain, port)
 }
 
 func (s *ProvisionerServer) getS3Region(cluster *garagev1alpha1.GarageCluster) string {

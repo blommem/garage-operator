@@ -175,6 +175,10 @@ rbac:
   # -- Create RBAC resources
   create: true
 
+# -- Kubernetes cluster domain used for service FQDNs.
+# Override when your cluster uses a custom domain (e.g., eu-cluster.local, as-cluster.local).
+clusterDomain: cluster.local
+
 # Namespace scoping
 # -- List of namespaces to watch (empty means all namespaces, cluster-scoped).
 # When set, the operator only watches the listed namespaces (plus the release namespace)

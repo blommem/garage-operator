@@ -118,17 +118,23 @@ func GetAdminToken(ctx context.Context, c client.Client, cluster *garagev1alpha1
 	return adminToken, nil
 }
 
+// svcFQDN returns the FQDN for a Kubernetes service with port, using the given cluster domain.
+// Example: svcFQDN("garage", "default", 3903, "cluster.local") → "garage.default.svc.cluster.local:3903"
+func svcFQDN(name, namespace string, port int32, clusterDomain string) string {
+	return fmt.Sprintf("%s.%s.svc.%s:%d", name, namespace, clusterDomain, port)
+}
+
 // GetGarageClient creates a Garage Admin API client for the given cluster.
 // NOTE: HTTP is intentional here — Garage does not natively support TLS for its
 // Admin API (see TLSConfig docs). The admin endpoint is cluster-internal
-// (svc.cluster.local) and authenticated via a bearer token. For TLS, deploy a
+// (svc.<clusterDomain>) and authenticated via a bearer token. For TLS, deploy a
 // service mesh (Istio/Linkerd) with mTLS or an in-cluster reverse proxy.
-func GetGarageClient(ctx context.Context, c client.Client, cluster *garagev1alpha1.GarageCluster) (*garage.Client, error) {
+func GetGarageClient(ctx context.Context, c client.Client, cluster *garagev1alpha1.GarageCluster, clusterDomain string) (*garage.Client, error) {
 	adminPort := DefaultAdminPort
 	if cluster.Spec.Admin != nil && cluster.Spec.Admin.BindPort != 0 {
 		adminPort = cluster.Spec.Admin.BindPort
 	}
-	adminEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", cluster.Name, cluster.Namespace, adminPort)
+	adminEndpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, clusterDomain)
 
 	adminToken, err := GetAdminToken(ctx, c, cluster)
 	if err != nil {

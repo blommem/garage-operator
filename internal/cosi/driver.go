@@ -46,6 +46,8 @@ type DriverConfig struct {
 	Endpoint string
 	// Namespace is where shadow resources are created
 	Namespace string
+	// ClusterDomain is the Kubernetes cluster domain (e.g., "cluster.local")
+	ClusterDomain string
 }
 
 // Driver is the main COSI driver server
@@ -63,7 +65,7 @@ func NewDriver(cfg DriverConfig, c client.Client) *Driver {
 		config:            cfg,
 		client:            c,
 		identityServer:    NewIdentityServer(cfg.DriverName),
-		provisionerServer: NewProvisionerServer(c, cfg.Namespace),
+		provisionerServer: NewProvisionerServer(c, cfg.Namespace, cfg.ClusterDomain),
 	}
 }
 
