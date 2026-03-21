@@ -349,6 +349,31 @@ kubectl scale garagecluster garage --replicas=5
 
 The operator populates `status.replicas`, `status.readyReplicas`, and `status.selector` for the scale subresource to function correctly.
 
+## PVC Retention Policy
+
+By default, PVCs created by a GarageCluster's StatefulSet are **not deleted** when the cluster is deleted or scaled down. This is intentional: Garage stores your data in those volumes, and automatic deletion would be irreversible.
+
+The behavior is controlled by `spec.storage.pvcRetentionPolicy`:
+
+| Field | Value | Behavior |
+|-------|-------|----------|
+| `whenDeleted` | `Retain` (default) | PVCs survive GarageCluster deletion — manual cleanup required |
+| `whenDeleted` | `Delete` | PVCs are deleted automatically when the GarageCluster is deleted |
+| `whenScaled` | `Retain` (default) | PVCs for scaled-down pods are kept (allows scaling back up) |
+| `whenScaled` | `Delete` | PVCs for removed replicas are deleted on scale-down |
+
+For dev/test clusters where you want automatic cleanup:
+
+```yaml
+spec:
+  storage:
+    pvcRetentionPolicy:
+      whenDeleted: Delete
+      whenScaled: Delete
+```
+
+Requires Kubernetes 1.23+. For production clusters, leave this unset (defaults to `Retain`) or set `whenScaled: Delete` only if you're confident scaled-down nodes won't need their data again.
+
 ## Website Hosting
 
 Website hosting is **enabled by default** on every GarageCluster. Buckets with website hosting enabled are served at `<bucket>.<root-domain>` on port 3902.

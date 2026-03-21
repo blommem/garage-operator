@@ -22,6 +22,12 @@ spec:
       size: 10Gi
     data:
       size: 100Gi
+    # PVC retention policy - controls what happens to PVCs on delete/scale-down.
+    # Default is Retain (both fields) to prevent accidental data loss.
+    # Set to Delete for automatic cleanup when tearing down non-production clusters.
+    # pvcRetentionPolicy:
+    #   whenDeleted: Delete  # Delete PVCs when the GarageCluster is deleted
+    #   whenScaled: Delete   # Delete PVCs for pods removed by a scale-down
 
   network:
     rpcBindPort: 3901
