@@ -188,9 +188,14 @@ func (r *GarageClusterReconciler) finalize(ctx context.Context, cluster *garagev
 	log := logf.FromContext(ctx)
 	log.Info("Finalizing GarageCluster", "name", cluster.Name)
 
-	// First, remove nodes from Garage layout before deleting K8s resources.
+	// Collect node IDs from GarageNode CRs before they get deleted.
+	// These are used as a fallback when tag-based matching fails (e.g., nodes
+	// registered with legacy tags that don't include the cluster ownership tag).
+	knownNodeIDs := r.collectGarageNodeIDs(ctx, cluster)
+
+	// Remove nodes from Garage layout before deleting K8s resources.
 	// This ensures nodes are properly deregistered from the cluster.
-	if err := r.removeNodesFromLayout(ctx, cluster); err != nil {
+	if err := r.removeNodesFromLayout(ctx, cluster, knownNodeIDs); err != nil {
 		// Log but don't fail finalization - nodes can be manually cleaned up
 		log.Error(err, "Failed to remove nodes from layout (continuing with cleanup)")
 	}
@@ -270,10 +275,34 @@ func (r *GarageClusterReconciler) finalize(ctx context.Context, cluster *garagev
 	return nil
 }
 
+// collectGarageNodeIDs collects node IDs from GarageNode CRs that belong to this cluster.
+// Called before deletion so node IDs are available for layout cleanup even if tags don't match.
+func (r *GarageClusterReconciler) collectGarageNodeIDs(ctx context.Context, cluster *garagev1alpha1.GarageCluster) map[string]bool {
+	log := logf.FromContext(ctx)
+	nodeIDs := make(map[string]bool)
+
+	nodeList := &garagev1alpha1.GarageNodeList{}
+	if err := r.List(ctx, nodeList, client.InNamespace(cluster.Namespace)); err != nil {
+		log.Error(err, "Failed to list GarageNodes for cleanup")
+		return nodeIDs
+	}
+
+	for _, node := range nodeList.Items {
+		if node.Spec.ClusterRef.Name == cluster.Name && node.Spec.NodeID != "" {
+			nodeIDs[node.Spec.NodeID] = true
+		}
+	}
+
+	if len(nodeIDs) > 0 {
+		log.Info("Collected node IDs from GarageNode CRs", "count", len(nodeIDs))
+	}
+	return nodeIDs
+}
+
 // removeNodesFromLayout removes all nodes belonging to this cluster from the Garage layout.
 // For gateway clusters, this connects to the storage cluster's admin API.
 // For storage clusters, this connects to its own admin API.
-func (r *GarageClusterReconciler) removeNodesFromLayout(ctx context.Context, cluster *garagev1alpha1.GarageCluster) error {
+func (r *GarageClusterReconciler) removeNodesFromLayout(ctx context.Context, cluster *garagev1alpha1.GarageCluster, knownNodeIDs map[string]bool) error {
 	log := logf.FromContext(ctx)
 
 	// Determine which cluster's layout to modify and get the appropriate client
@@ -321,12 +350,13 @@ func (r *GarageClusterReconciler) removeNodesFromLayout(ctx context.Context, clu
 		return fmt.Errorf("failed to get cluster layout: %w", err)
 	}
 
-	// Find all nodes belonging to this cluster (identified by exact cluster name tag match).
-	// Uses exact match to prevent clusters with prefix-overlapping names (e.g., "garage" and
-	// "garage-gateway") from accidentally removing each other's nodes.
+	// Find all nodes belonging to this cluster.
+	// Primary: match by cluster ownership tag in the format "cluster:<name>/<namespace>".
+	// Fallback: match by node IDs collected from GarageNode CRs before deletion.
+	// This handles nodes registered with legacy tags (e.g., zone name only).
 	nodesToRemove := make([]garage.NodeRoleChange, 0)
 	for _, role := range layout.Roles {
-		if !nodeBelongsToCluster(role.Tags, cluster.Name, cluster.Namespace) {
+		if !nodeBelongsToCluster(role.Tags, cluster.Name, cluster.Namespace) && !knownNodeIDs[role.ID] {
 			continue
 		}
 		// Check if already staged for removal
