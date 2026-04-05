@@ -62,6 +62,9 @@ spec:
         {{- if ne .Values.clusterDomain "cluster.local" }}
         - --cluster-domain={{ .Values.clusterDomain }}
         {{- end }}
+        {{- if .Values.defaultGarageImage }}
+        - --default-garage-image={{ .Values.defaultGarageImage }}
+        {{- end }}
         {{- $watchNS := include "garage-operator.watchNamespaceEnv" . }}
         {{- if $watchNS }}
         - --watch-namespaces={{ $watchNS }}

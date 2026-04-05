@@ -295,10 +295,11 @@ func TestResolveGarageImage(t *testing.T) {
 		name            string
 		image           string
 		imageRepository string
+		operatorDefault string
 		expected        string
 	}{
 		{
-			name:     "defaults when both empty",
+			name:     "defaults when all empty",
 			expected: defaultGarageImage,
 		},
 		{
@@ -317,12 +318,29 @@ func TestResolveGarageImage(t *testing.T) {
 			imageRepository: "my-mirror/garage",
 			expected:        "full/override:latest",
 		},
+		{
+			name:            "operator default used when CR fields empty",
+			operatorDefault: "registry.example.com/garage:v2.0.0",
+			expected:        "registry.example.com/garage:v2.0.0",
+		},
+		{
+			name:            "CR image overrides operator default",
+			image:           "custom/garage:v1.0.0",
+			operatorDefault: "registry.example.com/garage:v2.0.0",
+			expected:        "custom/garage:v1.0.0",
+		},
+		{
+			name:            "CR imageRepository overrides operator default",
+			imageRepository: "my-mirror/garage",
+			operatorDefault: "registry.example.com/garage:v2.0.0",
+			expected:        "my-mirror/garage:" + defaultGarageTag,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveGarageImage(tt.image, tt.imageRepository)
+			got := resolveGarageImage(tt.image, tt.imageRepository, tt.operatorDefault)
 			if got != tt.expected {
-				t.Errorf("resolveGarageImage(%q, %q) = %q, want %q", tt.image, tt.imageRepository, got, tt.expected)
+				t.Errorf("resolveGarageImage(%q, %q, %q) = %q, want %q", tt.image, tt.imageRepository, tt.operatorDefault, got, tt.expected)
 			}
 		})
 	}
@@ -330,12 +348,13 @@ func TestResolveGarageImage(t *testing.T) {
 
 func TestMergeNodeImage(t *testing.T) {
 	tests := []struct {
-		name         string
-		clusterImage string
-		clusterRepo  string
-		nodeImage    string
-		nodeRepo     string
-		expected     string
+		name            string
+		clusterImage    string
+		clusterRepo     string
+		nodeImage       string
+		nodeRepo        string
+		operatorDefault string
+		expected        string
 	}{
 		{
 			name:     "all empty uses default",
@@ -377,13 +396,24 @@ func TestMergeNodeImage(t *testing.T) {
 			nodeRepo:     "node-mirror/garage",
 			expected:     "node/garage:latest",
 		},
+		{
+			name:            "operator default used when all empty",
+			operatorDefault: "registry.example.com/garage:v2.0.0",
+			expected:        "registry.example.com/garage:v2.0.0",
+		},
+		{
+			name:            "cluster image overrides operator default",
+			clusterImage:    "custom/garage:v3.0.0",
+			operatorDefault: "registry.example.com/garage:v2.0.0",
+			expected:        "custom/garage:v3.0.0",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mergeNodeImage(tt.clusterImage, tt.clusterRepo, tt.nodeImage, tt.nodeRepo)
+			got := mergeNodeImage(tt.clusterImage, tt.clusterRepo, tt.nodeImage, tt.nodeRepo, tt.operatorDefault)
 			if got != tt.expected {
-				t.Errorf("mergeNodeImage(%q, %q, %q, %q) = %q, want %q",
-					tt.clusterImage, tt.clusterRepo, tt.nodeImage, tt.nodeRepo, got, tt.expected)
+				t.Errorf("mergeNodeImage(%q, %q, %q, %q, %q) = %q, want %q",
+					tt.clusterImage, tt.clusterRepo, tt.nodeImage, tt.nodeRepo, tt.operatorDefault, got, tt.expected)
 			}
 		})
 	}

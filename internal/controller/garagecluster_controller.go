@@ -64,6 +64,7 @@ type GarageClusterReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	ClusterDomain string
+	DefaultImage  string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garageclusters,verbs=get;list;watch;create;update;patch;delete
@@ -1233,13 +1234,16 @@ func (r *GarageClusterReconciler) reconcileAPIService(ctx context.Context, clust
 }
 
 // resolveGarageImage determines the container image from image/imageRepository fields.
-// Priority: image > imageRepository + default tag > default image.
-func resolveGarageImage(image, imageRepository string) string {
+// Priority: image > imageRepository + default tag > operatorDefault > hardcoded default.
+func resolveGarageImage(image, imageRepository, operatorDefault string) string {
 	if image != "" {
 		return image
 	}
 	if imageRepository != "" {
 		return imageRepository + ":" + defaultGarageTag
+	}
+	if operatorDefault != "" {
+		return operatorDefault
 	}
 	return defaultGarageImage
 }
@@ -1247,7 +1251,7 @@ func resolveGarageImage(image, imageRepository string) string {
 // mergeNodeImage merges cluster and node image fields, then resolves the final image.
 // If a node sets imageRepository without image, it clears any inherited cluster image
 // so the repo override takes effect.
-func mergeNodeImage(clusterImage, clusterRepo, nodeImage, nodeRepo string) string {
+func mergeNodeImage(clusterImage, clusterRepo, nodeImage, nodeRepo, operatorDefault string) string {
 	img, repo := clusterImage, clusterRepo
 	if nodeImage != "" {
 		img = nodeImage
@@ -1258,7 +1262,7 @@ func mergeNodeImage(clusterImage, clusterRepo, nodeImage, nodeRepo string) strin
 			img = ""
 		}
 	}
-	return resolveGarageImage(img, repo)
+	return resolveGarageImage(img, repo, operatorDefault)
 }
 
 // buildContainerPorts returns the container ports for the Garage StatefulSet
@@ -1686,7 +1690,7 @@ func (r *GarageClusterReconciler) reconcileStatefulSet(ctx context.Context, clus
 	log := logf.FromContext(ctx)
 	stsName := cluster.Name
 
-	image := resolveGarageImage(cluster.Spec.Image, cluster.Spec.ImageRepository)
+	image := resolveGarageImage(cluster.Spec.Image, cluster.Spec.ImageRepository, r.DefaultImage)
 
 	replicas := cluster.Spec.Replicas
 	if replicas == 0 {
