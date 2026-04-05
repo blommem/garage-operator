@@ -51,6 +51,7 @@ type GarageNodeReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	ClusterDomain string
+	DefaultImage  string
 }
 
 // +kubebuilder:rbac:groups=garage.rajsingh.info,resources=garagenodes,verbs=get;list;watch;create;update;patch;delete
@@ -155,7 +156,7 @@ func (r *GarageNodeReconciler) reconcileStatefulSet(ctx context.Context, node *g
 	stsName := node.Name
 
 	// Build merged pod config (cluster defaults + node overrides)
-	image := mergeNodeImage(cluster.Spec.Image, cluster.Spec.ImageRepository, node.Spec.Image, node.Spec.ImageRepository)
+	image := mergeNodeImage(cluster.Spec.Image, cluster.Spec.ImageRepository, node.Spec.Image, node.Spec.ImageRepository, r.DefaultImage)
 
 	resources := cluster.Spec.Resources
 	if node.Spec.Resources != nil {

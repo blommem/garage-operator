@@ -98,6 +98,12 @@ func main() {
 		"Comma-separated list of namespaces to watch. If empty, watches all namespaces. "+
 			"Can also be set via WATCH_NAMESPACE env var.")
 
+	// Default Garage image
+	var defaultGarageImage string
+	flag.StringVar(&defaultGarageImage, "default-garage-image", "",
+		"Default Garage container image for clusters that don't specify one. "+
+			"If empty, uses the built-in default (dxflrs/garage:v2.2.0).")
+
 	// Cluster domain
 	var clusterDomain string
 	flag.StringVar(&clusterDomain, "cluster-domain", "cluster.local",
@@ -245,6 +251,7 @@ func main() {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		ClusterDomain: clusterDomain,
+		DefaultImage:  defaultGarageImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageCluster")
 		os.Exit(1)
@@ -269,6 +276,7 @@ func main() {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		ClusterDomain: clusterDomain,
+		DefaultImage:  defaultGarageImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GarageNode")
 		os.Exit(1)
