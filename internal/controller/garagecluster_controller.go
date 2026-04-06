@@ -182,7 +182,7 @@ func (r *GarageClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Don't fail reconciliation, just log
 	}
 
-	// Reconcile Prometheus ServiceMonitor and Grafana dashboard ConfigMap
+	// Reconcile Prometheus ServiceMonitor
 	if err := r.reconcileMonitoring(ctx, cluster); err != nil {
 		log.Error(err, "Failed to reconcile monitoring resources")
 		// Non-fatal: monitoring failure shouldn't block storage reconciliation
@@ -2272,6 +2272,7 @@ func (r *GarageClusterReconciler) labelsForCluster(cluster *garagev1alpha1.Garag
 		"app.kubernetes.io/instance":   cluster.Name,
 		"app.kubernetes.io/managed-by": "garage-operator",
 		"app.kubernetes.io/component":  component,
+		"garage.rajsingh.info/cluster": cluster.Name,
 	}
 }
 
