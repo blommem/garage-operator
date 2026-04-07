@@ -482,6 +482,73 @@ Garage supports federating clusters across Kubernetes clusters for geo-distribut
 
 The operator handles node discovery, layout coordination, and health monitoring across clusters. Each cluster needs a `publicEndpoint` so remote nodes can reach it on the RPC port. See the [Garage documentation](https://garagehq.deuxfleurs.fr/documentation/cookbook/real-world/) for networking requirements.
 
+## Monitoring
+
+The operator integrates with Prometheus Operator for metrics scraping and alerting.
+
+### ServiceMonitor
+
+Enable `spec.monitoring` on a `GarageCluster` to create a `ServiceMonitor` targeting the admin API `/metrics` endpoint. Covers both Auto-mode pods and Manual-mode `GarageNode` pods via the `garage.rajsingh.info/cluster` label selector.
+
+```yaml
+spec:
+  monitoring:
+    enabled: true
+    interval: 30s          # optional, defaults to Prometheus global interval
+    additionalLabels:
+      release: monitoring  # match your Prometheus serviceMonitorSelector
+```
+
+If the cluster uses `metricsTokenSecretRef`, the generated ServiceMonitor will include `Authorization: Bearer` from that secret. Ensure your Prometheus instance has RBAC to `get` secrets in the Garage namespace.
+
+### PrometheusRules
+
+The Helm chart includes alerting rules for node availability, RPC error rate, block resync errors, and low disk space:
+
+```yaml
+# values.yaml
+prometheusRules:
+  enabled: true
+  labels:
+    release: monitoring
+```
+
+### Grafana Dashboard
+
+The Helm chart ships the official [Garage Prometheus dashboard](https://garagehq.deuxfleurs.fr/documentation/cookbook/monitoring/) as a ConfigMap:
+
+```yaml
+# values.yaml
+grafanaDashboard:
+  enabled: true
+  labels:
+    grafana_dashboard: "1"    # Grafana sidecar pattern
+```
+
+If you use the **Grafana Operator** (`grafana.integreatly.org`), create a `GrafanaDashboard` CR in the same namespace as your cluster pointing at the ConfigMap:
+
+```yaml
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: garage
+  namespace: garage           # same namespace as the ConfigMap
+spec:
+  allowCrossNamespaceImport: true
+  instanceSelector:
+    matchLabels:
+      grafana.internal/instance: grafana
+  folder: Garage
+  configMapRef:
+    name: <cluster-name>-garage-dashboard
+    key: garage-prometheus.json
+  datasources:
+    - inputName: DS_PROMETHEUS
+      datasourceName: Prometheus
+```
+
+> **Note**: `grafanaDashboard` in the Helm chart creates a single cluster-agnostic ConfigMap (`<release>-garage-dashboard`). The `GrafanaDashboard` CR pointing at it can live anywhere with `allowCrossNamespaceImport: true`.
+
 ## CSI-S3: Mount Buckets as Persistent Volumes
 
 You can use [k8s-csi-s3](https://github.com/yandex-cloud/k8s-csi-s3) to mount Garage buckets as PersistentVolumes via FUSE. This is useful for workloads that need filesystem-style access to S3 data (e.g., shared config, static assets, ML datasets).
