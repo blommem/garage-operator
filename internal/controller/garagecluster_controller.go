@@ -1236,6 +1236,7 @@ func (r *GarageClusterReconciler) reconcileAPIService(ctx context.Context, clust
 	existing.Spec.Selector = service.Spec.Selector
 	existing.Spec.Ports = service.Spec.Ports
 	existing.Spec.PublishNotReadyAddresses = service.Spec.PublishNotReadyAddresses
+	existing.Labels = service.Labels
 	existing.Annotations = service.Annotations
 	return r.Update(ctx, existing)
 }

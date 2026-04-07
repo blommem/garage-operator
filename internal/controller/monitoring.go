@@ -102,6 +102,10 @@ func (r *GarageClusterReconciler) buildServiceMonitor(cluster *garagev1alpha1.Ga
 			Labels:    labels,
 		},
 		Spec: monitoringv1.ServiceMonitorSpec{
+			// jobLabel tells Prometheus to use the value of app.kubernetes.io/name
+			// from the scraped Service as the job label — produces job="garage",
+			// which matches the official Garage Grafana dashboard queries.
+			JobLabel: "app.kubernetes.io/name",
 			Selector: metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
