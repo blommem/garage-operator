@@ -116,6 +116,12 @@ func (r *GarageClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// pause-reconcile annotation: operator pauses all reconciliation until annotation is removed.
+	if v := cluster.Annotations[garagev1alpha1.AnnotationPauseReconcile]; v == annotationTrue {
+		log.Info("Reconciliation paused via annotation")
+		return ctrl.Result{RequeueAfter: RequeueAfterLong}, nil
+	}
+
 	// Ensure RPC secret exists
 	if _, err := r.ensureRPCSecret(ctx, cluster); err != nil {
 		return r.updateStatus(ctx, cluster, "Error", err)
@@ -2805,7 +2811,7 @@ func (r *GarageClusterReconciler) bootstrapCluster(ctx context.Context, cluster 
 	}
 	// Check for force-layout-apply annotation
 	if cluster.Annotations != nil {
-		if val, ok := cluster.Annotations[garagev1alpha1.AnnotationForceLayoutApply]; ok && val == "true" {
+		if val, ok := cluster.Annotations[garagev1alpha1.AnnotationForceLayoutApply]; ok && val == annotationTrue {
 			cfg.forceLayoutApply = true
 		}
 	}
@@ -3762,6 +3768,71 @@ func (r *GarageClusterReconciler) handleOperationalAnnotations(ctx context.Conte
 		log.Info("Processed and removed skip-dead-nodes annotation")
 	}
 
+	// Build a Garage client if any API-calling annotations are set.
+	needsClient := cluster.Annotations[garagev1alpha1.AnnotationTriggerSnapshot] != "" ||
+		cluster.Annotations[garagev1alpha1.AnnotationTriggerRepair] != "" ||
+		cluster.Annotations[garagev1alpha1.AnnotationScrubCommand] != ""
+
+	var garageClient *garage.Client
+	if needsClient {
+		adminToken, err := r.getAdminToken(ctx, cluster)
+		if err != nil || adminToken == "" {
+			return fmt.Errorf("admin token required for operational annotation: %w", err)
+		}
+		adminPort := getAdminPort(cluster)
+		adminEndpoint := "http://" + svcFQDN(cluster.Name, cluster.Namespace, adminPort, r.ClusterDomain)
+		garageClient = garage.NewClient(adminEndpoint, adminToken)
+	}
+
+	var toDelete []string
+
+	// trigger-snapshot: triggers metadata snapshot on all nodes. Value must be "true".
+	if v, ok := cluster.Annotations[garagev1alpha1.AnnotationTriggerSnapshot]; ok {
+		if v != annotationTrue {
+			log.Info("Ignoring invalid trigger-snapshot value (expected 'true')", "value", v)
+		} else if err := garageClient.CreateMetadataSnapshot(ctx, "*"); err != nil {
+			return fmt.Errorf("trigger-snapshot failed: %w", err)
+		} else {
+			log.Info("Metadata snapshot triggered on all nodes")
+		}
+		toDelete = append(toDelete, garagev1alpha1.AnnotationTriggerSnapshot)
+	}
+
+	// trigger-repair: triggers a repair operation on all nodes.
+	// Valid values: Tables, Blocks, Versions, MultipartUploads, BlockRefs, BlockRc,
+	// Rebalance, Aliases, ClearResyncQueue. "Scrub" is rejected — use scrub-command.
+	if repairType, ok := cluster.Annotations[garagev1alpha1.AnnotationTriggerRepair]; ok {
+		if repairType == garagev1alpha1.RepairTypeScrub {
+			log.Info("trigger-repair: Scrub is not supported via this annotation; use scrub-command instead")
+		} else if !validRepairTypes[repairType] {
+			log.Info("Ignoring invalid trigger-repair value", "value", repairType)
+		} else if err := garageClient.LaunchRepair(ctx, "*", repairType); err != nil {
+			return fmt.Errorf("trigger-repair failed: %w", err)
+		} else {
+			log.Info("Repair operation launched on all nodes", "repairType", repairType)
+		}
+		toDelete = append(toDelete, garagev1alpha1.AnnotationTriggerRepair)
+	}
+
+	// scrub-command: controls the scrub worker on all nodes.
+	// Valid values: start, pause, resume, cancel.
+	if cmd, ok := cluster.Annotations[garagev1alpha1.AnnotationScrubCommand]; ok {
+		if !validScrubCommands[cmd] {
+			log.Info("Ignoring invalid scrub-command value", "value", cmd)
+		} else if err := garageClient.LaunchScrubCommand(ctx, "*", cmd); err != nil {
+			return fmt.Errorf("scrub-command failed: %w", err)
+		} else {
+			log.Info("Scrub command sent to all nodes", "command", cmd)
+		}
+		toDelete = append(toDelete, garagev1alpha1.AnnotationScrubCommand)
+	}
+
+	for _, k := range toDelete {
+		delete(cluster.Annotations, k)
+	}
+	if len(toDelete) > 0 {
+		return r.Update(ctx, cluster)
+	}
 	return nil
 }
 
@@ -3846,7 +3917,7 @@ func (r *GarageClusterReconciler) handleSkipDeadNodes(ctx context.Context, clust
 
 	// Check if allow-missing-data annotation is set
 	allowMissingData := false
-	if val, ok := cluster.Annotations[garagev1alpha1.AnnotationAllowMissingData]; ok && val == "true" {
+	if val, ok := cluster.Annotations[garagev1alpha1.AnnotationAllowMissingData]; ok && val == annotationTrue {
 		allowMissingData = true
 		log.Info("Allow-missing-data annotation is set, will force sync update")
 	}
