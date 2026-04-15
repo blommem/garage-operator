@@ -1295,10 +1295,12 @@ func (r *GarageClusterReconciler) reconcileAPIService(
 			Annotations: annotations,
 		},
 		Spec: corev1.ServiceSpec{
-			Type:                     serviceType,
-			Selector:                 selector,
-			Ports:                    ports,
-			ClusterIP:                clusterIP,
+			Type:      serviceType,
+			Selector:  selector,
+			Ports:     ports,
+			ClusterIP: clusterIP,
+			// Enable routing to pods even when not ready, essential for multi-cluster
+			// federation during bootstrap when pods are waiting for the cluster to be healthy
 			PublishNotReadyAddresses: true,
 		},
 	}
