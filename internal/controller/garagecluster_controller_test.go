@@ -426,7 +426,7 @@ var _ = Describe("GarageCluster Controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{
+			_, _ = reconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			// Note: The service creation may fail in envtest if the clusterIP is outside
